@@ -1,0 +1,7 @@
+# Install the CUDA 12.4 torch/torchvision wheels first; see README.
+torch==2.6.0
+torchvision==0.21.0
+numpy>=1.26,<3
+Pillow>=10,<12
+opencv-python-headless==4.10.0.84
+tqdm>=4.66,<5
