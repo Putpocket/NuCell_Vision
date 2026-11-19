@@ -1,9 +1,11 @@
-matplotlib
-numpy
-opencv-python
-pandas
-Pillow
-segmentation-models-pytorch
-torch
-torchvision
-tqdm
+# 비교 기준 환경: Debian 13, Python 3.11, PyTorch 2.6.0, torchvision 0.21.0, CUDA 12.4
+# CUDA용 PyTorch/torchvision은 README의 PyTorch cu124 설치 명령으로 먼저 설치한다.
+numpy==1.26.4
+Pillow>=10,<12
+opencv-python-headless==4.10.0.84
+tqdm>=4.66,<5
+matplotlib>=3.8,<4
+pandas>=2.2,<3
+segmentation-models-pytorch==0.6.0
+torch==2.6.0
+torchvision==0.21.0

@@ -1,42 +1,169 @@
-# NuCell Vision · U-Net
+# NuCell Vision · Model Evaluation
 
-컴퓨터비전 팀 프로젝트에서 내가 맡은 U-Net 코드다. 현미경 사진에서 핵이 있는 부분을 찾는다. 인코더는 ResNet-50을 썼고, RGB 사진을 넣으면 핵 영역을 나타내는 1채널 로짓이 나온다.
+컴퓨터비전 팀 프로젝트의 공통 평가 저장소다. BBBC038 현미경 이미지에서 핵 영역을 분할하는 고전 영상처리, U-Net, Mask R-CNN 결과를 같은 데이터 분할과 기준으로 비교한다.
+
+## 담당 범위
+
+나재민은 평가 코드와 행정, 모델 성능 비교, 실패 사례 분석을 담당한다. 모델 학습 코드는 각 담당자가 관리하며, 평가에는 담당자가 공유한 학습 완료 체크포인트를 사용한다.
+
+## 저장소 구성
+
+```text
+.
+├── data/                         # 로컬 데이터, Git에 올리지 않음
+│   └── stage1_train/
+├── splits/                       # 공통 train/val/test 이미지 ID
+├── scripts/                      # 데이터 점검 및 분석 보조 스크립트
+├── tests/                        # 평가·Mask R-CNN 코드 점검
+├── evaluate_unet.py              # U-Net 체크포인트 평가
+├── evaluate_maskrcnn.py          # Mask R-CNN 체크포인트 평가
+├── compare_models.py              # 모델별 결과 비교 및 실패 순위 작성
+├── make_qualitative_grid.py       # 성공·실패 사례 그림 생성
+├── train_unet_improved.py        # U-Net 담당자 학습 코드
+├── train_maskrcnn.py             # Mask R-CNN 담당자 학습 코드
+├── maskrcnn_model.py
+├── maskrcnn_utils.py
+├── requirements.txt
+└── .gitignore
+```
+
+체크포인트, 원본 데이터, 평가 결과는 저장소에 커밋하지 않는다. 큰 파일은 팀에서 합의한 서버나 파일 공유 경로로 전달한다.
 
 ## 데이터 준비
 
-[BBBC038](https://bbbc.broadinstitute.org/BBBC038)에서 `stage1_train.zip`을 받으면 된다. 데이터는 CC0이고 인용 방법도 같은 페이지에 나와 있다. 압축을 푼 뒤 사진과 마스크를 아래처럼 뒀다.
+[BBBC038 공식 페이지](https://bbbc.broadinstitute.org/BBBC038)에서 `stage1_train.zip`을 내려받아 저장소 루트에 압축을 푼다. 폴더 구조는 다음과 같아야 한다.
 
 ```text
 data/stage1_train/<이미지 ID>/images/<이미지 ID>.png
 data/stage1_train/<이미지 ID>/masks/<핵 ID>.png
+splits/train.txt
+splits/val.txt
+splits/test.txt
 ```
 
-670장 중 469장은 학습, 100장은 검증, 101장은 테스트로 나눴다. 이미지 ID는 `splits/`에 정리해 뒀다. Mask R-CNN도 이 파일 그대로 쓰면 된다. 테스트용 101장은 학습이나 설정을 바꿀 때 쓰지 않는다.
+공통 분할은 학습 469장, 검증 100장, 테스트 101장이다. `splits/` 파일은 모델 간 동일해야 하며, 변경하지 않는다. 테스트 101장은 최종 성능 측정 전에 학습·임계값 선택·개선 실험에 사용하지 않는다.
 
-## 학습 방법
+### 데이터 점검
 
-학습 서버에서 썼던 환경은 PyTorch 2.6.0, torchvision 0.21.0, CUDA 12.4, segmentation-models-pytorch 0.6.0이다. CUDA를 쓸 수 있는 PyTorch 환경을 준비한 뒤 저장소 폴더에서 실행하면 된다.
+저장소 루트에서 실행한다.
+
+```powershell
+python scripts/check_maskrcnn_data.py
+```
+
+점검기는 분할 중복과 학습·검증 이미지 및 마스크를 확인한다. 테스트 이미지와 주석은 열지 않는다. 2026-11-19 로컬 점검에서는 학습 469장·핵 20,059개, 검증 100장·핵 4,949개를 확인했고, 512 입력 변환에서 사라진 마스크는 없었다. 이 결과는 데이터 무결성 확인이며, 모델 평가 결과는 아니다.
+
+## 실행 환경
+
+비교 기준 서버 환경은 Debian 13, Python 3.11, PyTorch 2.6.0, torchvision 0.21.0, CUDA 12.4, RTX 4060이다. CUDA 휠을 먼저 설치한 뒤 나머지 패키지를 설치한다.
 
 ```bash
+python -m pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu124
 python -m pip install -r requirements.txt
+python -c "import numpy, torch, torchvision; print(numpy.__version__, torch.__version__, torchvision.__version__, torch.cuda.is_available())"
+```
+
+Windows에서 준비하는 경우에도 Python 3.11 환경을 사용한다. 팀원이 실행한 Windows 환경에서는 PyTorch 2.6.0+cu124, torchvision 0.21.0+cu124, CUDA 사용 가능(`True`)까지 확인했다. 학습 서버에서의 실행 여부는 서버에서 위 버전·CUDA 확인 명령과 코드 점검을 별도로 수행해 기록한다.
+
+## 학습 및 체크포인트 전달
+
+비교 전에 U-Net 담당자는 `results/unet_new/best.pth`, Mask R-CNN 담당자는 학습 결과 폴더의 `best.pth`를 공유한다. 아래는 예시 경로이며, 파일은 Git에 커밋하지 않는다.
+
+U-Net 학습 예시:
+
+```bash
 python -u train_unet_improved.py --loss bce --epochs 100 --patience 15 --min-delta 0.0005 --output results/unet_new
 ```
 
-위 명령은 증강 없이 학습한다. 증강을 켜려면 `--augment`를 붙이면 된다. 이 경우 학습 사진과 마스크를 같이 뒤집거나 90도 단위로 돌리고, 밝기와 대비는 사진에만 적용한다. 출력 폴더 이름은 실험마다 다르게 뒀다. 가장 높은 검증 Dice를 기록한 가중치는 `best.pth`에 저장된다.
+Mask R-CNN 학습 예시:
 
-배치 크기는 4, 학습률은 0.0001이다. AdamW를 쓰고 가중치 감쇠는 0.01, 시드는 42로 뒀다.
+```bash
+python -u train_maskrcnn.py --epochs 100 --patience 15 --min-delta 0.0005 --output results/maskrcnn
+```
 
-## Mask R-CNN과 비교할 때
+비교 기본 실험은 증강을 끈다. 모델별 배치 크기와 손실은 구조에 맞게 설정한다. 각 학습 기록에 실제 종료 에폭, 최고 검증 Dice 에폭, 검증 Dice, 체크포인트 경로를 남긴다.
 
-두 모델은 같은 Debian 서버에서 같은 RTX 4060과 PyTorch·CUDA 환경을 쓴다. 데이터와 평가 조건을 공유하고 모델 코드는 각자 작성한다. U-Net은 개별 핵 마스크를 합쳐 한 장으로 만들고, Mask R-CNN은 같은 정답에서 핵마다 마스크와 박스를 만든다. 배치 크기와 손실은 각 모델에 맞게 잡는다.
+## 평가 순서
 
-- 학습 469장, 검증 100장, 테스트 101장의 이미지 ID는 `splits/`에 있는 파일 그대로 쓴다.
-- 두 모델에 실제로 들어가는 크기는 512×512로 맞춘다. 사진 비율을 유지해 긴 변을 512로 맞춘 뒤 중앙에 놓고 남는 부분을 패딩한다. Mask R-CNN은 모델 내부에서 크기를 다시 바꾸는지도 확인한다.
-- 최대 100에폭으로 맞춘다. 검증 Dice가 가장 높았던 가중치를 쓰고, 실제 종료 에폭과 최고 에폭을 같이 기록한다.
-- 모델 비교는 둘 다 증강을 끄고 진행한다. U-Net에서 `--augment`를 켠 결과는 증강 효과를 보는 별도 실험으로 둔다.
+### 1. 검증 데이터로 실행 확인
 
-최종 평가는 같은 테스트 101장에서 한다. 패딩을 걷어내고 원본 해상도로 돌린 다음 예측 핵 영역을 한 장으로 합쳐 이미지별 Dice와 IoU를 구하고 평균을 낸다. 핵 개수 오차는 따로 비교한다. U-Net은 시그모이드 값이 0.5보다 큰 픽셀을 핵으로 보고 Watershed는 쓰지 않는다.
+공유받은 체크포인트 경로에 맞게 명령을 실행한다. 출력 폴더는 새 경로여야 한다.
 
-처리 시간은 두 모델을 같은 GPU에서 배치 1로 돌려 잰다. 워밍업 뒤 GPU 동기화를 하고 전처리부터 후처리까지 재며, 파일을 읽고 쓰는 시간은 뺀다. 두 모델의 파라미터 수도 같이 기록한다.
+```bash
+python evaluate_unet.py --checkpoint results/unet_new/best.pth --split val --output results/unet_val --save-images
+python evaluate_maskrcnn.py --checkpoint results/maskrcnn/best.pth --split val --output results/maskrcnn_val --save-images
+```
 
-공통 평가에서 U-Net 가중치를 쓸 때는 `build_model(pretrained=False)`로 모델을 만든 뒤 `best.pth`를 불러오면 된다.
+### 2. 최종 테스트 평가
+
+두 모델의 설정을 검증 세트에서 확정한 다음 테스트 세트에서 각 모델을 한 번 평가한다. 테스트 결과를 확인해 임계값·전처리·모델 설정을 다시 고르지 않는다.
+
+```bash
+python evaluate_unet.py --checkpoint results/unet_new/best.pth --split test --output results/unet_test --save-images
+python evaluate_maskrcnn.py --checkpoint results/maskrcnn/best.pth --split test --output results/maskrcnn_test --save-images
+```
+
+두 평가기는 이미지 비율을 유지해 긴 변을 512로 맞추고 중앙 패딩한다. 추론 뒤 패딩을 제거해 원본 해상도로 복원하고, 핵 마스크 합집합 기준으로 이미지별 Dice·IoU 및 핵 개수 오차를 계산한다. 처리 시간은 배치 1, 워밍업 뒤 GPU 동기화를 포함하며, 메모리 내 이미지 입력부터 후처리까지 측정하고 디스크 파일 입출력은 제외한다. 모델별 파라미터 수와 평가 조건도 `summary.json`에 남긴다.
+
+각 평가 결과 폴더에는 `per_image.csv`, `summary.json`, `example_ids.json`이 생성된다. `--save-images`를 지정하면 원본 해상도의 예측·정답·overlay도 저장한다.
+
+U-Net 개수 측정은 이진 마스크 합집합에서 8방향 연결요소를 센다. 서로 닿은 핵은 하나로 셀 수 있으므로 개수 지표 해석 시 이 제한을 기록한다. U-Net은 기본 시그모이드 임계값 0.5를 사용하고 Watershed는 적용하지 않는다.
+
+## 고전 기법 포함 성능 비교
+
+고전 영상처리 담당자의 결과도 같은 평가 조건과 이미지 ID를 사용해 `per_image.csv`로 준비한다. 필수 열은 `image_id`, `dice`, `iou`, `count_abs_error`, `time_ms`다. 가능한 경우 `summary.json`에 `split` 및 `params`를 기록한다. 고전 기법을 포함한 세 방법의 검증 결과를 먼저 비교한다.
+
+```bash
+python compare_models.py \
+  --model classical=results/classical_val \
+  --model unet=results/unet_val \
+  --model maskrcnn=results/maskrcnn_val \
+  --output results/comparison_val
+```
+
+설정 확정 뒤 같은 명령에서 `_val` 경로를 `_test`로 바꿔 최종 비교를 생성한다.
+
+```bash
+python compare_models.py \
+  --model classical=results/classical_test \
+  --model unet=results/unet_test \
+  --model maskrcnn=results/maskrcnn_test \
+  --output results/comparison_test
+```
+
+비교 도구는 모델 간 split과 이미지 ID가 일치하는지 확인한다. 결과 폴더에 다음 파일을 저장한다.
+
+- `model_comparison.csv`: 평균 Dice·IoU, 핵 개수 MAE, 이미지당 시간, 파라미터 수
+- `per_image_comparison.csv`: 동일 이미지에서 모델별 지표
+- `failure_analysis.csv`: 모델 평균 Dice가 낮은 순서의 이미지별 결과
+- `summary.json`: 사용 split, 요약 지표와 공통 저성능 이미지 ID
+
+## 실패 사례 시각화와 분석
+
+모든 평가기를 `--save-images`와 함께 실행한 후 원본 데이터 및 각 모델 결과 경로를 전달한다.
+
+```bash
+python make_qualitative_grid.py \
+  --data-dir data/stage1_train \
+  --model classical=results/classical_test \
+  --model unet=results/unet_test \
+  --model maskrcnn=results/maskrcnn_test \
+  --output results/qualitative_test
+```
+
+모델 평균 Dice가 높은 성공 사례 1장과 낮은 실패 사례 3장을 기본으로 저장한다. 출력은 `success_case.png`, `failure_case_1.png` 등과 선택 정보를 담은 `selected_cases.json`이다. 그림을 확인해 작은 핵, 맞닿은 핵, 흐릿한 경계, 염색·조명 차이, 마스크 손실 등 실제 원인을 구분해 보고서에 기록한다. 개선 실험은 우선 검증 데이터에서 수행하고, 개선 전후 조건과 수치를 기록한 다음 테스트 평가 설정을 고정한다.
+
+## 행정 및 재현성 기록
+
+실험마다 아래 정보를 회의록 또는 보고서에 기록한다.
+
+- Git 커밋 ID, 브랜치명, 실행 날짜 및 실행자
+- Python·PyTorch·torchvision·CUDA 버전과 GPU 모델
+- 데이터 split 목록의 SHA-256, 데이터 점검 결과
+- 모델·체크포인트 경로, 학습 설정, 실제 종료 에폭 및 최고 검증 에폭
+- 테스트 이미지별·평균 Dice, IoU, 핵 개수 오차, 처리 시간
+- 성공·실패 사례 이미지 ID, 원인 해석 및 개선 실험 전후 결과
+
+데이터 출처는 [BBBC038 공식 페이지](https://bbbc.broadinstitute.org/BBBC038)의 인용 안내를 따른다. 데이터셋은 CC0로 제공되며, 데이터와 학습 가중치를 GitHub 저장소에 올리지 않는다.
+
+코드 작성·검토에 OpenAI Codex를 사용했다. 보고서에는 도구와 용도를 기재하고 실행 결과 및 코드 동작은 담당자가 직접 확인·설명한다.

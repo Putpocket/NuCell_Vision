@@ -1,0 +1,8 @@
+# Mask R-CNN 학습/평가용 공통 패키지
+# CUDA PyTorch/torchvision은 README의 cu124 설치 명령으로 먼저 설치한다.
+numpy==1.26.4
+Pillow>=10,<12
+opencv-python-headless==4.10.0.84
+tqdm>=4.66,<5
+torch==2.6.0
+torchvision==0.21.0

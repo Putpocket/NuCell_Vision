@@ -9,3 +9,9 @@ results/
 .env
 .env.*
 *.pth
+
+# 압축 데이터 및 공유용 대용량 파일
+*.zip
+*.tar
+*.tar.gz
+
