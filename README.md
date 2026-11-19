@@ -111,7 +111,11 @@ U-Net 개수 측정은 이진 마스크 합집합에서 8방향 연결요소를 
 
 ## 고전 기법 포함 성능 비교
 
-고전 영상처리 담당자의 결과도 같은 평가 조건과 이미지 ID를 사용해 `per_image.csv`로 준비한다. 필수 열은 `image_id`, `dice`, `iou`, `count_abs_error`, `time_ms`다. 가능한 경우 `summary.json`에 `split` 및 `params`를 기록한다. 고전 기법을 포함한 세 방법의 검증 결과를 먼저 비교한다.
+고전 영상처리 담당자의 평가 결과가 준비되면 같은 이미지 ID와 평가 기준으로 비교한다. 결과 폴더에는 `per_image.csv`가 있어야 하며, 필수 열은 `image_id`, `dice`, `iou`, `count_abs_error`, `time_ms`다. 가능하면 `summary.json`에 `split`과 `params`도 기록한다.
+
+현재 고전 기법 결과는 아직 준비되지 않았다. 아래 명령은 고전 기법과 두 딥러닝 모델의 검증 결과가 모두 준비된 뒤 실행한다. `compare_models.py`는 모델을 평가하는 코드가 아니라, 각 모델의 평가 결과를 모아 비교하는 코드다.
+
+검증 결과로 설정을 확인하고 비교한다.
 
 ```bash
 python compare_models.py \
@@ -121,7 +125,7 @@ python compare_models.py \
   --output results/comparison_val
 ```
 
-설정 확정 뒤 같은 명령에서 `_val` 경로를 `_test`로 바꿔 최종 비교를 생성한다.
+모델 설정을 확정한 뒤 테스트 세트에서 최종 평가를 수행하고 결과를 비교한다. 테스트 결과를 확인한 뒤 설정이나 임계값을 다시 조정하지 않는다.
 
 ```bash
 python compare_models.py \
