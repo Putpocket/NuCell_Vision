@@ -168,6 +168,13 @@ python make_qualitative_grid.py \
 - 테스트 이미지별·평균 Dice, IoU, 핵 개수 오차, 처리 시간
 - 성공·실패 사례 이미지 ID, 원인 해석 및 개선 실험 전후 결과
 
+커밋 ID는 저장소 루트에서 다음 명령으로 확인한다.
+
+```bash
+git branch --show-current
+git rev-parse --short HEAD
+```
+
 데이터 출처는 [BBBC038 공식 페이지](https://bbbc.broadinstitute.org/BBBC038)의 인용 안내를 따른다. 데이터셋은 CC0로 제공되며, 데이터와 학습 가중치를 GitHub 저장소에 올리지 않는다.
 
 코드 작성·검토에 OpenAI Codex를 사용했다. 보고서에는 도구와 용도를 기재하고 실행 결과 및 코드 동작은 담당자가 직접 확인·설명한다.
