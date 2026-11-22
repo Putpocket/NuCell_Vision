@@ -18,6 +18,7 @@
 ├── evaluate_unet.py              # U-Net 체크포인트 평가
 ├── evaluate_maskrcnn.py          # Mask R-CNN 체크포인트 평가
 ├── evaluate_classical.py         # 고전 기법 예측 및 지표 평가
+├── classical_model.py            # classic 브랜치에서 가져오는 고전 기법 예측 함수
 ├── compare_models.py              # 모델별 결과 비교 및 실패 순위 작성
 ├── make_qualitative_grid.py       # 성공·실패 사례 그림 생성
 ├── train_unet_improved.py        # U-Net 담당자 학습 코드
