@@ -21,7 +21,7 @@ TILE_HEIGHT = 330
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="평가 결과 폴더들에서 성공 1건과 실패 3건을 골라 비교 그림을 저장합니다."
+        description="평가 결과 폴더들에서 성공 사례와 실패 사례를 각각 3건 이상 골라 비교 그림을 저장합니다."
     )
     parser.add_argument("--data-dir", type=Path, default=Path("data/stage1_train"))
     parser.add_argument("--model", action="append", required=True, metavar="NAME=DIR",
@@ -30,6 +30,8 @@ def parse_args() -> argparse.Namespace:
                         help="새 그림 출력 폴더")
     parser.add_argument("--failure-count", type=int, default=3,
                         help="실패 사례 수 (기본값: 3)")
+    parser.add_argument("--success-count", type=int, default=3,
+                        help="성공 사례 수 (기본값: 3)")
     return parser.parse_args()
 
 
@@ -112,8 +114,8 @@ def draw_case(image_id: str, model_dirs: dict[str, Path],
 
 def main() -> int:
     args = parse_args()
-    if args.failure_count < 3:
-        raise ValueError("과제 기준에 맞게 --failure-count는 최소 3이어야 합니다.")
+    if args.failure_count < 3 or args.success_count < 3:
+        raise ValueError("과제 기준에 맞게 성공·실패 사례 수는 각각 최소 3이어야 합니다.")
     data_dir = args.data_dir if args.data_dir.is_absolute() else Path.cwd() / args.data_dir
     output = args.output if args.output.is_absolute() else Path.cwd() / args.output
 
@@ -143,33 +145,36 @@ def main() -> int:
         other_split = summaries[name].get("split")
         if split is not None and other_split != split:
             raise ValueError(f"평가 split이 일치하지 않습니다: {split} != {other_split}")
-    if len(reference_ids) < args.failure_count + 1:
-        raise ValueError("성공 사례 1개와 요청한 실패 사례를 고를 만큼 평가 이미지가 적습니다.")
+    if len(reference_ids) < args.failure_count + args.success_count:
+        raise ValueError("요청한 성공·실패 사례를 서로 겹치지 않게 고를 만큼 평가 이미지가 적습니다.")
 
-    # 세 방법 평균 Dice가 가장 높은 사례 1개와 낮은 실패 사례들을 고릅니다.
+    # 세 방법 평균 Dice가 높은 사례들과 낮은 실패 사례들을 각각 고릅니다.
     mean_scores = {
         image_id: sum(float(rows_by_model[name][image_id]["dice"]) for name in names) / len(names)
         for image_id in reference_ids
     }
     ranked = sorted(mean_scores, key=lambda image_id: (mean_scores[image_id], image_id))
-    success_id = ranked[-1]
+    success_ids = ranked[-args.success_count:][::-1]
     failure_ids = ranked[:args.failure_count]
 
     output.mkdir(parents=True, exist_ok=False)
-    draw_case(success_id, model_dirs, rows_by_model, data_dir, output / "success_case.png")
+    for index, image_id in enumerate(success_ids, start=1):
+        draw_case(image_id, model_dirs, rows_by_model, data_dir,
+                  output / f"success_case_{index}.png")
     for index, image_id in enumerate(failure_ids, start=1):
         draw_case(image_id, model_dirs, rows_by_model, data_dir,
                   output / f"failure_case_{index}.png")
     selection = {
         "split": split,
-        "success_case": {"image_id": success_id, "mean_dice": mean_scores[success_id]},
+        "success_cases": [{"image_id": image_id, "mean_dice": mean_scores[image_id]}
+                          for image_id in success_ids],
         "failure_cases": [{"image_id": image_id, "mean_dice": mean_scores[image_id]}
                           for image_id in failure_ids],
         "models": names,
     }
     (output / "selected_cases.json").write_text(json.dumps(selection, ensure_ascii=False, indent=2) + "\n",
                                                   encoding="utf-8")
-    print(f"성공 사례: {success_id}; 실패 사례 {len(failure_ids)}개 저장: {output}")
+    print(f"성공 사례 {len(success_ids)}개, 실패 사례 {len(failure_ids)}개 저장: {output}")
     return 0
 
 

@@ -168,7 +168,7 @@ python make_qualitative_grid.py \
   --output results/qualitative_test
 ```
 
-모델 평균 Dice가 높은 성공 사례 1장과 낮은 실패 사례 3장을 기본으로 저장한다. 출력은 `success_case.png`, `failure_case_1.png` 등과 선택 정보를 담은 `selected_cases.json`이다. 그림을 확인해 작은 핵, 맞닿은 핵, 흐릿한 경계, 염색·조명 차이, 마스크 손실 등 실제 원인을 구분해 보고서에 기록한다. 개선 실험은 우선 검증 데이터에서 수행하고, 개선 전후 조건과 수치를 기록한 다음 테스트 평가 설정을 고정한다.
+모델 평균 Dice가 높은 성공 사례 3장과 낮은 실패 사례 3장을 기본으로 저장한다. 필요하면 `--success-count`와 `--failure-count`로 사례 수를 늘릴 수 있다(각각 최소 3). 출력은 `success_case_1.png`부터 `success_case_3.png`, `failure_case_1.png`부터 `failure_case_3.png`와 선택 정보를 담은 `selected_cases.json`이다. 그림을 확인해 작은 핵, 맞닿은 핵, 흐릿한 경계, 염색·조명 차이, 마스크 손실 등 실제 원인을 구분해 보고서에 기록한다. 개선 실험은 우선 검증 데이터에서 수행하고, 개선 전후 조건과 수치를 기록한 다음 테스트 평가 설정을 고정한다.
 
 ## 실험 기록
 
