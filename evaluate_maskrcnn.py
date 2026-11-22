@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parent
 
 
 def parse_args():
+    # 체크포인트, 데이터 분할, 결과 저장 위치를 받습니다.
     parser = argparse.ArgumentParser(description='Evaluate nuclei masks/counts at original resolution.')
     parser.add_argument('--checkpoint', type=Path, required=True)
     parser.add_argument('--data-dir', type=Path, default=ROOT / 'data/stage1_train')
@@ -38,6 +39,7 @@ def main():
     device = torch.device(args.device)
     if device.type == 'cuda' and not torch.cuda.is_available():
         raise RuntimeError('CUDA unavailable')
+    # 학습 때 사용한 분할 해시와 같은지 확인한 뒤 모델을 복원합니다.
     splits = read_splits(args.split_dir)
     checkpoint = torch.load(args.checkpoint, map_location='cpu', weights_only=True)
     config = checkpoint['config']
@@ -66,6 +68,7 @@ def main():
                                         config['mask_threshold'], geometry)
         return union, count, masks, scores, geometry
 
+    # 첫 이미지로 워밍업한 다음 선택한 분할의 예측·지표를 기록합니다.
     rows = []
     with torch.inference_mode():
         warmup_image, _ = load_sample(args.data_dir / splits[args.split][0])
@@ -101,6 +104,7 @@ def main():
                 overlay[pred] = (0.5 * overlay[pred] + 0.5 * np.array([255, 64, 64])).astype(np.uint8)
                 cv2.imwrite(str(folder / 'overlay.png'), cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR))
 
+    # 비교 스크립트가 읽는 이미지별 CSV와 요약 JSON을 저장합니다.
     with (args.output / 'per_image.csv').open('w', newline='', encoding='utf-8') as file:
         writer = csv.DictWriter(file, fieldnames=list(rows[0]))
         writer.writeheader()

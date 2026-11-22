@@ -27,6 +27,7 @@ def parse_args() -> argparse.Namespace:
 
 def read_model(name: str, folder: Path) -> tuple[list[dict[str, str]], dict[str, object]]:
     """각 모델의 평가 CSV와 요약 JSON을 읽고 필요한 열을 확인합니다."""
+    # 비교에 필요한 지표 열이 빠졌거나 이미지 ID가 중복되면 중단합니다.
     csv_path = folder / "per_image.csv"
     summary_path = folder / "summary.json"
     if not csv_path.is_file():
@@ -69,6 +70,7 @@ def write_csv(path: Path, rows: list[dict[str, object]]) -> None:
 def main() -> int:
     args = parse_args()
     output = args.output if args.output.is_absolute() else Path.cwd() / args.output
+    # 각 모델의 표준 평가 결과 폴더를 읽습니다.
     models: dict[str, tuple[list[dict[str, str]], dict[str, object]]] = {}
     for item in args.model:
         if "=" not in item:
@@ -100,6 +102,7 @@ def main() -> int:
         name: {row["image_id"]: row for row in rows}
         for name, (rows, _) in models.items()
     }
+    # 같은 이미지 ID를 기준으로 모델별 지표를 한 행에 모읍니다.
     detailed_rows: list[dict[str, object]] = []
     for image_id in sorted(reference_ids):
         combined: dict[str, object] = {"image_id": image_id}
@@ -118,6 +121,7 @@ def main() -> int:
     # 모든 모델에서 평균 Dice가 낮은 이미지부터 보면 공통 실패 유형을 찾기 쉽습니다.
     failures = sorted(detailed_rows, key=lambda row: (float(row["mean_dice_across_models"]),
                                                        str(row["image_id"])))
+    # 모델별 평균 성능과 계산 파라미터 수를 요약합니다.
     comparison = []
     for name, (rows, summary) in models.items():
         comparison.append({

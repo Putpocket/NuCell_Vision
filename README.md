@@ -4,7 +4,7 @@
 
 ## 담당 범위
 
-작성자인 나재민은 평가 코드와 행정, 모델 성능 비교, 실패 사례 분석을 담당한다. 모델 학습 코드는 각 담당자가 관리하며, 평가에는 담당자가 공유한 학습 완료 체크포인트를 사용한다.
+나재민은 평가 코드와 행정, 모델 성능 비교, 실패 사례 분석을 담당한다. 모델 학습 코드는 각 담당자가 관리하며, 평가에는 담당자가 공유한 학습 완료 체크포인트를 사용한다.
 
 ## 저장소 구성
 
@@ -17,6 +17,7 @@
 ├── tests/                        # 평가·Mask R-CNN 코드 점검
 ├── evaluate_unet.py              # U-Net 체크포인트 평가
 ├── evaluate_maskrcnn.py          # Mask R-CNN 체크포인트 평가
+├── evaluate_classical.py         # 고전 기법 예측 및 지표 평가
 ├── compare_models.py              # 모델별 결과 비교 및 실패 순위 작성
 ├── make_qualitative_grid.py       # 성공·실패 사례 그림 생성
 ├── train_unet_improved.py        # U-Net 담당자 학습 코드
@@ -111,9 +112,21 @@ U-Net 개수 측정은 이진 마스크 합집합에서 8방향 연결요소를 
 
 ## 고전 기법 포함 성능 비교
 
-고전 영상처리 담당자의 평가 결과가 준비되면 같은 이미지 ID와 평가 기준으로 비교한다. 결과 폴더에는 `per_image.csv`가 있어야 하며, 필수 열은 `image_id`, `dice`, `iou`, `count_abs_error`, `time_ms`다. 가능하면 `summary.json`에 `split`과 `params`도 기록한다.
+고전 기법 파일 `classical_model.py`가 저장소 루트에 있어야 한다. `evaluate_classical.py`는 그 예측 함수를 불러 같은 이미지 ID에서 정답 마스크와 비교하고 표준 결과를 만든다. 결과 폴더에는 `per_image.csv`, `summary.json`, `example_ids.json`이 생성된다. `--save-images`를 지정하면 성공·실패 사례 그림용 원본 크기 예측·정답 마스크도 저장한다. 필수 CSV 열은 `image_id`, `dice`, `iou`, `count_abs_error`, `time_ms`다.
 
-현재 고전 기법 결과는 아직 준비되지 않았다. 아래 명령은 고전 기법과 두 딥러닝 모델의 검증 결과가 모두 준비된 뒤 실행한다. `compare_models.py`는 모델을 평가하는 코드가 아니라, 각 모델의 평가 결과를 모아 비교하는 코드다.
+먼저 검증 데이터에서 실행한다. 출력 폴더는 기존에 없는 새 경로여야 한다.
+
+```bash
+python evaluate_classical.py --split val --output results/classical_val --save-images
+```
+
+설정을 확정한 뒤 최종 테스트를 한 번 실행한다. 테스트 평가에는 `--final-test`를 함께 지정한다.
+
+```bash
+python evaluate_classical.py --split test --final-test --output results/classical_test --save-images
+```
+
+`compare_models.py`는 모델을 평가하는 코드가 아니라, 각 모델의 표준 평가 결과를 모아 비교하는 코드다.
 
 검증 결과로 설정을 확인하고 비교한다.
 

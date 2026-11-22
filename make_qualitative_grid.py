@@ -34,6 +34,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def read_results(name: str, folder: Path) -> tuple[dict[str, dict[str, str]], dict[str, object]]:
+    # 이미지별 Dice와 평가 split을 읽어 사례 선택에 사용합니다.
     csv_path = folder / "per_image.csv"
     summary_path = folder / "summary.json"
     if not csv_path.is_file() or not summary_path.is_file():
@@ -77,6 +78,7 @@ def draw_case(image_id: str, model_dirs: dict[str, Path],
     if len(source_paths) != 1:
         raise ValueError(f"원본 이미지가 한 장이 아닙니다: {source_dir}")
 
+    # 원본, 정답, 각 모델의 예측을 같은 크기 패널로 구성합니다.
     panels: list[tuple[str, np.ndarray]] = [("Original", load_rgb(source_paths[0]))]
     first_name = next(iter(model_dirs))
     base = model_dirs[first_name] / "predictions" / image_id
@@ -115,6 +117,7 @@ def main() -> int:
     data_dir = args.data_dir if args.data_dir.is_absolute() else Path.cwd() / args.data_dir
     output = args.output if args.output.is_absolute() else Path.cwd() / args.output
 
+    # 비교할 결과 폴더와 이미지별 지표를 불러옵니다.
     model_dirs: dict[str, Path] = {}
     rows_by_model: dict[str, dict[str, dict[str, str]]] = {}
     summaries: dict[str, dict[str, object]] = {}

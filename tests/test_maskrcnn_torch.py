@@ -13,7 +13,10 @@ HAS_TORCH = (importlib.util.find_spec('torch') is not None
 
 @unittest.skipUnless(HAS_TORCH, 'PyTorch/torchvision not installed; run these checks on the server')
 class TorchContractTests(unittest.TestCase):
+    """PyTorch 모델 구성과 Dataset 반환 형식의 약속을 확인합니다."""
+
     def test_offline_checkpoint_model_keeps_coco_frozen_norm_and_freezing(self):
+        # 사전학습 다운로드 없이 COCO 체크포인트와 호환되는 층 구성을 확인합니다.
         import torch
         from torchvision.ops.misc import FrozenBatchNorm2d
         from maskrcnn_model import build_maskrcnn
@@ -26,6 +29,7 @@ class TorchContractTests(unittest.TestCase):
         self.assertTrue(model.backbone.body.layer4[0].conv1.weight.requires_grad)
 
     def test_model_normalizes_once_and_keeps_actual_input_at_512(self):
+        # 모델 내부 정규화가 한 번만 적용되고 입력 크기가 512로 유지되는지 봅니다.
         import torch
         from maskrcnn_model import build_maskrcnn
         model = build_maskrcnn(pretrained=False)
@@ -38,6 +42,7 @@ class TorchContractTests(unittest.TestCase):
         self.assertEqual(model.roi_heads.mask_predictor.mask_fcn_logits.out_channels, 2)
 
     def test_dataset_returns_individual_masks_boxes_and_unnormalized_rgb(self):
+        # Dataset이 RGB 이미지와 핵별 마스크·박스를 기대한 형식으로 반환하는지 봅니다.
         from maskrcnn_model import NucleiInstanceDataset, collate_instances
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

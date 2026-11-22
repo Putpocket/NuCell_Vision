@@ -52,6 +52,7 @@ def parse_args() -> argparse.Namespace:
 
 def read_splits(folder: Path) -> tuple[dict[str, list[str]], dict[str, str]]:
     """Mask R-CNN 평가 코드와 같은 split 개수·중복·해시 점검을 합니다."""
+    # 고정된 이미지 수와 겹치지 않는 분할인지 먼저 확인합니다.
     splits: dict[str, list[str]] = {}
     hashes: dict[str, str] = {}
     for name, expected in (("train", 469), ("val", 100), ("test", 101)):
@@ -74,6 +75,7 @@ def read_splits(folder: Path) -> tuple[dict[str, list[str]], dict[str, str]]:
 
 def letterbox(array: np.ndarray, is_mask: bool = False) -> tuple[np.ndarray, tuple[int, int, int, int]]:
     """학습 코드와 같은 비율 유지 리사이즈 및 중앙 패딩을 적용합니다."""
+    # 비율은 유지하고 남는 부분은 검은색으로 채웁니다.
     height, width = array.shape[:2]
     scale = min(SIZE / width, SIZE / height)
     new_width = max(1, round(width * scale))
@@ -95,6 +97,7 @@ def letterbox(array: np.ndarray, is_mask: bool = False) -> tuple[np.ndarray, tup
 
 def load_sample(data_dir: Path, image_id: str) -> tuple[np.ndarray, np.ndarray, int]:
     """이미지와 개별 핵 마스크를 읽고 합친 정답 및 인스턴스 수를 반환합니다."""
+    # 개별 마스크 파일은 합쳐 Dice·IoU용 정답을 만들고, 핵 수는 따로 셉니다.
     folder = data_dir / image_id
     image_paths = sorted(path for path in (folder / "images").iterdir()
                          if path.is_file() and path.suffix.lower() in IMAGE_SUFFIXES)
@@ -131,6 +134,7 @@ def make_unet(checkpoint: Path, device_name: str):
     if device_name == "cuda" and not torch.cuda.is_available():
         raise ValueError("CUDA를 요청했지만 CUDA를 사용할 수 없습니다.")
     device = torch.device(device_name)
+    # 사전학습 가중치 없이 학습 구조만 만든 뒤 체크포인트를 적용합니다.
     model = smp.Unet(encoder_name="resnet50", encoder_weights=None, in_channels=3, classes=1)
     # PyTorch 버전에 따라 weights_only 인자가 지원되지 않을 수 있습니다.
     try:
@@ -144,6 +148,7 @@ def make_unet(checkpoint: Path, device_name: str):
 
 def predict_unet(torch, model, device, image: np.ndarray, threshold: float):
     """전처리부터 원본 해상도 복원까지 시간을 재고 이진 마스크를 만듭니다."""
+    # 학습 때와 같은 정규화로 추론하고 패딩을 제거해 원본 크기로 되돌립니다.
     started = time.perf_counter()
     boxed, (top, left, new_height, new_width) = letterbox(image)
     normalized = (boxed.astype(np.float32) / 255.0 - MEAN) / STD
@@ -214,6 +219,7 @@ def main() -> int:
         raise ValueError("--threshold 값은 0과 1 사이여야 합니다.")
     if args.warmup < 1:
         raise ValueError("--warmup은 1 이상이어야 합니다.")
+    # 분할 목록을 검증하고 선택한 val/test 이미지 ID만 평가합니다.
     splits, split_hashes = read_splits(args.split_dir)
     ids = splits[args.split]
     torch, model, device = make_unet(args.checkpoint, args.device)
@@ -226,6 +232,7 @@ def main() -> int:
         torch.cuda.synchronize(device)
 
     args.output.mkdir(parents=True, exist_ok=False)
+    # 이미지별 지표와 선택적 시각화 파일을 모읍니다.
     rows: list[dict[str, object]] = []
     for image_id in ids:
         image, gt, gt_count = load_sample(args.data_dir, image_id)

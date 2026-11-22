@@ -9,6 +9,7 @@ sys.path.insert(0, str(ROOT))
 
 
 def main():
+    # 학습·검증 데이터만 읽어 split과 512 변환 시 핵 소실을 확인합니다.
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data-dir', type=Path, default=ROOT / 'data/stage1_train')
     parser.add_argument('--split-dir', type=Path, default=ROOT / 'splits')
@@ -18,6 +19,7 @@ def main():
     splits = read_splits(args.split_dir)
     report = {'split_counts': {k: len(v) for k, v in splits.items()}}
     for name in ('train', 'val'):
+        # 각 이미지의 핵 수와 크기 변환 뒤 사라지는 마스크 수를 집계합니다.
         counts, dropped_ids, lost = [], [], 0
         for image_id in splits[name]:
             _, masks = load_sample(args.data_dir / image_id)
@@ -30,6 +32,7 @@ def main():
         report[name] = dict(images=len(counts), min_nuclei=min(counts), max_nuclei=max(counts),
                             total_nuclei=sum(counts), masks_lost_at_512=lost,
                             images_with_lost_masks=dropped_ids)
+    # 테스트 정답은 열지 않았다는 점을 결과에 함께 남깁니다.
     report['note'] = ('Test images/annotations were not opened. Choose detection limits using train/val only. '
                       'Original-resolution evaluation retains every original GT nucleus.')
     print(json.dumps(report, indent=2))
