@@ -232,7 +232,7 @@ def main() -> int:
     if device.type == "cuda":
         torch.cuda.synchronize(device)
 
-    args.output.mkdir(parents=True, exist_ok=False)
+    args.output.mkdir(parents=True, exist_ok=True)
     # 이미지별 지표와 선택적 시각화 파일을 모읍니다.
     rows: list[dict[str, object]] = []
     for image_id in ids:

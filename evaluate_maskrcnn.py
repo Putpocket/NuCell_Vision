@@ -52,7 +52,7 @@ def main():
                      for name in ('train', 'val', 'test')}
     if config['split_sha256'] != actual_hashes:
         raise ValueError('Split files differ from those used during training')
-    args.output.mkdir(parents=True, exist_ok=False)
+    args.output.mkdir(parents=True, exist_ok=True)
     model = build_maskrcnn(False, config['max_detections'], config['score_threshold']).to(device)
     model.load_state_dict(checkpoint['model'], strict=True)
     model.eval()
