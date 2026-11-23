@@ -42,7 +42,8 @@ def parse_args() -> argparse.Namespace:
                         help="새 결과 폴더 경로 (기존 폴더는 덮어쓰지 않음)")
     parser.add_argument("--threshold", type=float, default=0.5,
                         help="U-Net 시그모이드 확률 threshold (기본값: 0.5)")
-
+    parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto",
+                        help="추론 장치")
     parser.add_argument("--warmup", type=int, default=10,
                         help="측정 전 워밍업 횟수 (기본값: 10, 측정에 포함하지 않음)")
     parser.add_argument("--save-images", action="store_true",
@@ -261,7 +262,6 @@ def main() -> int:
         "mean_time_ms": float(np.mean([row["time_ms"] for row in rows])),
         "median_time_ms": float(np.median([row["time_ms"] for row in rows])),
         "params": parameter_count,
-        "device": torch.cuda.get_device_name(device) if device.type == "cuda" else str(device),
         "checkpoint": str(args.checkpoint), "score_threshold": args.threshold,
         "warmup": args.warmup, "split_sha256": split_hashes,
         "count_method": "8-connected components on the binary union; touching nuclei may merge",

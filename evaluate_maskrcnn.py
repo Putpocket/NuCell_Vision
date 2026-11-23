@@ -16,7 +16,8 @@ def parse_args():
     parser.add_argument('--data-dir', type=Path, default=ROOT / 'data/stage1_train')
     parser.add_argument('--split-dir', type=Path, default=ROOT / 'splits')
     parser.add_argument('--split', choices=('val', 'test'), default='val')
-    parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--device', choices=('auto', 'cpu', 'cuda'), default='auto')
+    parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument('--warmup', type=int, default=10)
     parser.add_argument('--save-images', action='store_true')
     args = parser.parse_args()
@@ -35,7 +36,10 @@ def main():
     from maskrcnn_utils import (binary_metrics, iter_prediction_masks, letterbox,
                                 load_sample, prediction_union, read_splits)
 
-    device = torch.device(args.device)
+    device_name = args.device
+    if device_name == 'auto':
+        device_name = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = torch.device(device_name)
     if device.type == 'cuda' and not torch.cuda.is_available():
         raise RuntimeError('CUDA unavailable')
     # 학습 때 사용한 분할 해시와 같은지 확인한 뒤 모델을 복원합니다.
@@ -115,7 +119,6 @@ def main():
                    mean_time_ms=float(np.mean([r['time_ms'] for r in rows])),
                    median_time_ms=float(np.median([r['time_ms'] for r in rows])),
                    params=sum(p.numel() for p in model.parameters()),
-                   device=torch.cuda.get_device_name(device) if device.type == 'cuda' else str(device),
                    checkpoint=str(args.checkpoint.resolve()), checkpoint_epoch=checkpoint['epoch'],
                    score_threshold=config['score_threshold'], mask_threshold=config['mask_threshold'],
                    max_detections=config['max_detections'], warmup=args.warmup,
