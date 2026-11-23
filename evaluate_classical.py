@@ -29,7 +29,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--split-dir", type=Path, default=PROJECT_ROOT / "splits")
     parser.add_argument("--split", choices=("val", "test"), default="val")
     parser.add_argument("--output", type=Path, required=True,
-                        help="기존에 없는 새 결과 폴더")
+                        help="결과 저장 폴더 (기존 결과는 덮어씀)")
     parser.add_argument("--polarity", choices=("bright", "auto"), default="auto")
     parser.add_argument("--seed-ratio", type=float, default=0.7)
     parser.add_argument("--min-area", type=int, default=16)
@@ -159,10 +159,8 @@ def main() -> int:
     config = dict(model="classical_otsu_distance_watershed", split=args.split,
                   input_size=512, polarity=args.polarity, seed_ratio=args.seed_ratio,
                   min_area=args.min_area, warmup=args.warmup, params=PARAMETER_COUNT,
-                  device="cpu", split_sha256=split_hashes,
+                  split_sha256=split_hashes,
                   timing_scope="RGB uint8 in RAM -> letterbox -> classical segmentation -> original-size mask/count; excludes file I/O, ground truth and metrics")
-    if args.output.exists():
-        raise ValueError(f"결과 폴더가 이미 있습니다. 새 경로를 지정하세요: {args.output}")
 
     # OpenCV 스레드 수를 고정하고 평가 전에 같은 첫 이미지로 워밍업합니다.
     cv2.setNumThreads(1)
@@ -173,7 +171,7 @@ def main() -> int:
     for _ in range(args.warmup):
         predict_classical(warmup_image, **options)
 
-    args.output.mkdir(parents=True, exist_ok=False)
+    args.output.mkdir(parents=True, exist_ok=True)
     # 예측 결과를 정답과 비교해 모델 공통 형식으로 저장합니다.
     rows: list[dict[str, object]] = []
     for number, image_id in enumerate(image_ids, 1):
@@ -184,7 +182,7 @@ def main() -> int:
 
         if args.save_images:
             image_dir = args.output / "predictions" / image_id
-            image_dir.mkdir(parents=True)
+            image_dir.mkdir(parents=True, exist_ok=True)
             cv2.imwrite(str(image_dir / "prediction.png"), prediction.astype(np.uint8) * 255)
             cv2.imwrite(str(image_dir / "ground_truth.png"), target.astype(np.uint8) * 255)
             overlay = image.copy()

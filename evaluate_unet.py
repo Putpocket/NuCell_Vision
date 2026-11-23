@@ -235,7 +235,7 @@ def main() -> int:
     args.output.mkdir(parents=True, exist_ok=True)
     # 이미지별 지표와 선택적 시각화 파일을 모읍니다.
     rows: list[dict[str, object]] = []
-    for image_id in ids:
+    for number, image_id in enumerate(ids, 1):
         image, gt, gt_count = load_sample(args.data_dir, image_id)
         # 파일 읽기와 정답 로딩을 측정 구간에서 제외합니다.
         if device.type == "cuda":
@@ -243,9 +243,12 @@ def main() -> int:
         pred, predicted_count, elapsed_ms = predict_unet(torch, model, device, image, args.threshold)
         metrics = score(gt, pred, gt_count, predicted_count)
         rows.append({"image_id": image_id, **metrics, "time_ms": elapsed_ms})
+        print(f"[{number}/{len(ids)}] {image_id[:12]} | Dice={metrics['dice']:.4f} "
+              f"IoU={metrics['iou']:.4f} | nuclei={predicted_count}/{gt_count} | "
+              f"{elapsed_ms:.2f} ms", flush=True)
         if args.save_images:
             image_dir = args.output / "predictions" / image_id
-            image_dir.mkdir(parents=True)
+            image_dir.mkdir(parents=True, exist_ok=True)
             cv2.imwrite(str(image_dir / "prediction.png"), pred.astype(np.uint8) * 255)
             cv2.imwrite(str(image_dir / "ground_truth.png"), gt.astype(np.uint8) * 255)
             overlay = image.copy()

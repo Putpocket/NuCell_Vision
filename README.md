@@ -83,29 +83,57 @@ Mask R-CNN 학습 예시:
 python -u train_maskrcnn.py --epochs 100 --patience 15 --min-delta 0.0005 --output results/maskrcnn
 ```
 
-비교 기본 실험은 증강을 끈다. 모델별 배치 크기와 손실은 구조에 맞게 설정한다. 각 학습 기록에 실제 종료 에폭, 최고 검증 Dice 에폭, 검증 Dice, 체크포인트 경로를 남긴다.
+U-Net V1은 데이터 증강 없이 학습하고, V2는 데이터 증강을 적용한다. 두 버전은 같은 검증 데이터로 비교한다. Mask R-CNN도 개선 전후 체크포인트가 있으면 같은 검증 데이터에서 평가한다. 모델별 배치 크기와 손실은 구조에 맞게 설정한다. 각 학습 기록에 실제 종료 에폭, 최고 검증 Dice 에폭, 검증 Dice, 체크포인트 경로를 남긴다.
 
 ## 평가 순서
 
-### 1. 검증 데이터로 실행 확인
+### 1. 검증 데이터 평가 및 V1·V2 비교
 
-공유받은 체크포인트 경로에 맞게 명령을 실행한다. 출력 폴더는 새 경로여야 한다.
+공유받은 체크포인트 경로에 맞게 실행한다. 고전 기법은 학습이나 데이터 증강을 하지 않으므로 한 번 평가하고, 그 결과를 두 비교에서 공통으로 사용한다. U-Net은 V1(증강 없음)과 V2(증강 적용)를 각각 평가한다. Mask R-CNN은 두 버전의 체크포인트가 있으면 각각 평가하고, 개선 버전이 없으면 기존 결과를 공통으로 사용한다. 기존 출력 경로를 재사용하면 결과 파일이 덮어써진다.
 
 ```bash
-python evaluate_unet.py --checkpoint results/unet_new/best.pth --split val --output results/unet_val --save-images
-python evaluate_maskrcnn.py --checkpoint results/maskrcnn/best.pth --split val --output results/maskrcnn_val --save-images
+# 고전 기법: 한 번 평가
+python evaluate_classical.py --split val --output results/classical_val --save-images
+
+# U-Net V1·V2
+python evaluate_unet.py --checkpoint unet_v1_best.pth --split val --output results/unet_v1_val --save-images
+python evaluate_unet.py --checkpoint unet_v2_best.pth --split val --output results/unet_v2_val --save-images
+
+# Mask R-CNN: 체크포인트가 두 버전 모두 있을 때 각각 실행
+python evaluate_maskrcnn.py --checkpoint results/maskrcnn_v1/best.pth --split val --output results/maskrcnn_v1_val --save-images
+python evaluate_maskrcnn.py --checkpoint results/maskrcnn_v2/best.pth --split val --output results/maskrcnn_v2_val --save-images
+
+# V1 비교
+python compare_models.py \
+  --model classical=results/classical_val \
+  --model unet=results/unet_v1_val \
+  --model maskrcnn=results/maskrcnn_v1_val \
+  --output results/comparison_v1_val
+
+# Mask R-CNN V2 결과가 없으면 비교 명령의 경로를 results/maskrcnn_v1_val로 바꾼다
+python compare_models.py \
+  --model classical=results/classical_val \
+  --model unet=results/unet_v2_val \
+  --model maskrcnn=results/maskrcnn_v2_val \
+  --output results/comparison_v2_val
 ```
 
 ### 2. 최종 테스트 평가
 
-두 모델의 설정을 검증 세트에서 확정한 다음 테스트 세트에서 각 모델을 한 번 평가한다. 테스트 결과를 확인해 임계값·전처리·모델 설정을 다시 고르지 않는다.
+검증 결과를 바탕으로 각 방법의 최종 설정과 체크포인트를 확정한 뒤, 테스트 세트에서 각 방법을 한 번 평가한다. 테스트 결과를 확인해 임계값·전처리·모델 설정을 다시 고르지 않는다. 아래 체크포인트 경로는 최종 선택한 파일 경로로 바꾼다.
 
 ```bash
-python evaluate_unet.py --checkpoint results/unet_new/best.pth --split test --output results/unet_test --save-images
-python evaluate_maskrcnn.py --checkpoint results/maskrcnn/best.pth --split test --output results/maskrcnn_test --save-images
-```
+python evaluate_classical.py --split test --final-test --output results/classical_test --save-images
+python evaluate_unet.py --checkpoint unet_final_best.pth --split test --output results/unet_test --save-images
+python evaluate_maskrcnn.py --checkpoint maskrcnn_final_best.pth --split test --output results/maskrcnn_test --save-images
 
-두 평가기는 이미지 비율을 유지해 긴 변을 512로 맞추고 중앙 패딩한다. 추론 뒤 패딩을 제거해 원본 해상도로 복원하고, 핵 마스크 합집합 기준으로 이미지별 Dice·IoU 및 핵 개수 오차를 계산한다. 처리 시간은 배치 1, 워밍업 뒤 GPU 동기화를 포함하며, 메모리 내 이미지 입력부터 후처리까지 측정하고 디스크 파일 입출력은 제외한다. 모델별 파라미터 수와 평가 조건도 `summary.json`에 남긴다.
+python compare_models.py \
+  --model classical=results/classical_test \
+  --model unet=results/unet_test \
+  --model maskrcnn=results/maskrcnn_test \
+  --output results/comparison_test
+```
+두 평가기는 이미지 비율을 유지해 긴 변을 512로 맞추고 중앙 패딩한다. 추론 뒤 패딩을 제거해 원본 해상도로 복원하고, 핵 마스크 합집합 기준으로 이미지별 Dice·IoU 및 핵 개수 오차를 계산한다. 처리 시간은 배치 1, 워밍업 뒤 동기화를 포함하며, 메모리 내 이미지 입력부터 후처리까지 측정하고 디스크 파일 입출력은 제외한다. 모델별 파라미터 수와 평가 조건도 `summary.json`에 남긴다.
 
 각 평가 결과 폴더에는 `per_image.csv`, `summary.json`, `example_ids.json`이 생성된다. `--save-images`를 지정하면 원본 해상도의 예측·정답·overlay도 저장한다.
 
@@ -115,7 +143,7 @@ U-Net 개수 측정은 이진 마스크 합집합에서 8방향 연결요소를 
 
 고전 기법 파일 `classical_model.py`가 저장소 루트에 있어야 한다. `evaluate_classical.py`는 그 예측 함수를 불러 같은 이미지 ID에서 정답 마스크와 비교하고 표준 결과를 만든다. 결과 폴더에는 `per_image.csv`, `summary.json`, `example_ids.json`이 생성된다. `--save-images`를 지정하면 성공·실패 사례 그림용 원본 크기 예측·정답 마스크도 저장한다. 필수 CSV 열은 `image_id`, `dice`, `iou`, `count_abs_error`, `time_ms`다.
 
-먼저 검증 데이터에서 실행한다. 출력 폴더는 기존에 없는 새 경로여야 한다.
+먼저 검증 데이터에서 실행한다. 기존 출력 경로를 재사용하면 결과 파일이 덮어써진다.
 
 ```bash
 python evaluate_classical.py --split val --output results/classical_val --save-images
@@ -127,27 +155,7 @@ python evaluate_classical.py --split val --output results/classical_val --save-i
 python evaluate_classical.py --split test --final-test --output results/classical_test --save-images
 ```
 
-`compare_models.py`는 모델을 평가하는 코드가 아니라, 각 모델의 표준 평가 결과를 모아 비교하는 코드다.
-
-검증 결과로 설정을 확인하고 비교한다.
-
-```bash
-python compare_models.py \
-  --model classical=results/classical_val \
-  --model unet=results/unet_val \
-  --model maskrcnn=results/maskrcnn_val \
-  --output results/comparison_val
-```
-
-모델 설정을 확정한 뒤 테스트 세트에서 최종 평가를 수행하고 결과를 비교한다. 테스트 결과를 확인한 뒤 설정이나 임계값을 다시 조정하지 않는다.
-
-```bash
-python compare_models.py \
-  --model classical=results/classical_test \
-  --model unet=results/unet_test \
-  --model maskrcnn=results/maskrcnn_test \
-  --output results/comparison_test
-```
+평가 순서의 검증·최종 테스트 절에 각 명령과 결과 비교 방법을 정리했다. `compare_models.py`는 모델을 직접 평가하지 않고, 각 평가기가 만든 표준 결과를 모아 비교한다.
 
 비교 도구는 모델 간 split과 이미지 ID가 일치하는지 확인한다. 결과 폴더에 다음 파일을 저장한다.
 

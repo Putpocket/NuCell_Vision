@@ -17,7 +17,6 @@ def parse_args():
     parser.add_argument('--split-dir', type=Path, default=ROOT / 'splits')
     parser.add_argument('--split', choices=('val', 'test'), default='val')
     parser.add_argument('--device', choices=('auto', 'cpu', 'cuda'), default='auto')
-    parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument('--warmup', type=int, default=10)
     parser.add_argument('--save-images', action='store_true')
     args = parser.parse_args()
@@ -31,7 +30,6 @@ def main():
     import cv2
     import numpy as np
     import torch
-    from tqdm import tqdm
     from maskrcnn_model import build_maskrcnn
     from maskrcnn_utils import (binary_metrics, iter_prediction_masks, letterbox,
                                 load_sample, prediction_union, read_splits)
@@ -78,7 +76,7 @@ def main():
         for _ in range(args.warmup):
             predict(warmup_image)
         synchronize()
-        for image_id in tqdm(splits[args.split], desc=f'Evaluate {args.split}'):
+        for number, image_id in enumerate(splits[args.split], 1):
             # File decoding/GT loading is outside the timed inference pipeline.
             image, gt_instances = load_sample(args.data_dir / image_id)
             gt = gt_instances.any(axis=0)
@@ -91,9 +89,12 @@ def main():
             rows.append(dict(image_id=image_id, dice=float(dice), iou=float(iou),
                              true_count=len(gt_instances), predicted_count=count,
                              count_abs_error=abs(count - len(gt_instances)), time_ms=elapsed_ms))
+            print(f'[{number}/{len(splits[args.split])}] {image_id[:12]} | Dice={dice:.4f} '
+                  f'IoU={iou:.4f} | nuclei={count}/{len(gt_instances)} | '
+                  f'{elapsed_ms:.2f} ms', flush=True)
             if args.save_images:
                 folder = args.output / 'predictions' / image_id
-                folder.mkdir(parents=True)
+                folder.mkdir(parents=True, exist_ok=True)
                 labels = np.zeros(pred.shape, dtype=np.uint16)
                 for i, mask in enumerate(iter_prediction_masks(
                         masks, scores, config['score_threshold'], config['mask_threshold'], geometry), 1):
