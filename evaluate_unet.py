@@ -42,7 +42,7 @@ def parse_args() -> argparse.Namespace:
                         help="새 결과 폴더 경로 (기존 폴더는 덮어쓰지 않음)")
     parser.add_argument("--threshold", type=float, default=0.5,
                         help="U-Net 시그모이드 확률 threshold (기본값: 0.5)")
-    parser.add_argument("--device", choices=["auto", "cuda", "cpu"], default="auto")
+
     parser.add_argument("--warmup", type=int, default=10,
                         help="측정 전 워밍업 횟수 (기본값: 10, 측정에 포함하지 않음)")
     parser.add_argument("--save-images", action="store_true",

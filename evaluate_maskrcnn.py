@@ -17,7 +17,6 @@ def parse_args():
     parser.add_argument('--split-dir', type=Path, default=ROOT / 'splits')
     parser.add_argument('--split', choices=('val', 'test'), default='val')
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--device', default='cuda')
     parser.add_argument('--warmup', type=int, default=10)
     parser.add_argument('--save-images', action='store_true')
     args = parser.parse_args()
