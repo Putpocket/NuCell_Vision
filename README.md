@@ -55,9 +55,13 @@ python scripts/check_maskrcnn_data.py
 
 점검기는 분할 중복과 학습·검증 이미지 및 마스크를 확인한다. 테스트 이미지와 주석은 열지 않는다. 2026-11-19 로컬 점검에서는 학습 469장·핵 20,059개, 검증 100장·핵 4,949개를 확인했고, 512 입력 변환에서 사라진 마스크는 없었다. 이 결과는 데이터 무결성 확인이며, 모델 평가 결과는 아니다.
 
-## 실행 환경
+### 학습 환경
 
-비교 기준 서버 환경은 Debian 13, Python 3.11, PyTorch 2.6.0, torchvision 0.21.0, CUDA 12.4, RTX 4060이다. CUDA 휠을 먼저 설치한 뒤 나머지 패키지를 설치한다.
+모델 학습은 Debian 13, Python 3.11, PyTorch 2.6.0, torchvision 0.21.0, CUDA 12.4 환경의 서버에서 진행한다. 학습 환경을 설정할 때 CUDA 휠을 먼저 설치한 뒤 나머지 패키지를 설치한다.
+
+### 최종 평가 환경
+
+최종 평가는 Windows 11, Python 3.11, PyTorch 2.6.0+cu124, torchvision 0.21.0+cu124, CUDA 12.4 환경에서 진행한다.
 
 ```bash
 python -m pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu124
@@ -87,13 +91,14 @@ U-Net V1은 데이터 증강 없이 학습하고, V2는 데이터 증강을 적�
 
 ## 평가 순서
 
-### 1. 검증 데이터 평가 및 V1·V2 비교
+### 1. 검증 데이터 평가 및 개선 비교
 
-공유받은 체크포인트 경로에 맞게 실행한다. 고전 기법은 학습이나 데이터 증강을 하지 않으므로 한 번 평가하고, 그 결과를 두 비교에서 공통으로 사용한다. U-Net은 V1(증강 없음)과 V2(증강 적용)를 각각 평가한다. Mask R-CNN은 두 버전의 체크포인트가 있으면 각각 평가하고, 개선 버전이 없으면 기존 결과를 공통으로 사용한다. 기존 출력 경로를 재사용하면 결과 파일이 덮어써진다.
+공유받은 체크포인트 경로에 맞게 실행한다. 고전 기법은 학습하지 않으며, 기존 설정인 `auto`와 변경 설정인 `bright`를 같은 검증 세트에서 각각 평가하고 결과를 비교한다. U-Net은 V1(증강 없음)과 V2(증강 적용)를 비교한다. Mask R-CNN은 개선 전후 체크포인트가 모두 있을 때 각각 평가하고, 개선 버전이 없으면 기존 결과를 공통으로 사용한다. 기존 출력 경로를 재사용하면 결과 파일이 덮어써진다.
 
 ```bash
-# 고전 기법: 한 번 평가
-python evaluate_classical.py --split val --output results/classical_val --save-images
+# 고전 기법 기존·변경 설정 비교
+python evaluate_classical.py --split val --polarity bright --output results/classical_bright_val --save-images
+python evaluate_classical.py --split val --polarity auto --output results/classical_auto_val --save-images
 
 # U-Net V1·V2
 python evaluate_unet.py --checkpoint unet_v1_best.pth --split val --output results/unet_v1_val --save-images
@@ -103,27 +108,34 @@ python evaluate_unet.py --checkpoint unet_v2_best.pth --split val --output resul
 python evaluate_maskrcnn.py --checkpoint results/maskrcnn_v1/best.pth --split val --output results/maskrcnn_v1_val --save-images
 python evaluate_maskrcnn.py --checkpoint results/maskrcnn_v2/best.pth --split val --output results/maskrcnn_v2_val --save-images
 
-# V1 비교
+# 고전 기법 기존 auto·변경 bright 설정 비교
 python compare_models.py \
-  --model classical=results/classical_val \
+  --model classical_bright=results/classical_bright_val \
+  --model classical_auto=results/classical_auto_val \
+  --output results/classical_polarity_comparison_val
+
+# 세 방법 비교: 고전 기법은 검증에서 선택한 auto 설정 사용
+python compare_models.py \
+  --model classical=results/classical_auto_val \
   --model unet=results/unet_v1_val \
   --model maskrcnn=results/maskrcnn_v1_val \
   --output results/comparison_v1_val
 
-# Mask R-CNN V2 결과가 없으면 비교 명령의 경로를 results/maskrcnn_v1_val로 바꾼다
 python compare_models.py \
-  --model classical=results/classical_val \
+  --model classical=results/classical_auto_val \
   --model unet=results/unet_v2_val \
   --model maskrcnn=results/maskrcnn_v2_val \
   --output results/comparison_v2_val
 ```
 
+Mask R-CNN V2 체크포인트가 없으면 두 번째 비교 명령의 `maskrcnn` 경로를 `results/maskrcnn_v1_val`로 바꾼다.
+
 ### 2. 최종 테스트 평가
 
-검증 결과를 바탕으로 각 방법의 최종 설정과 체크포인트를 확정한 뒤, 테스트 세트에서 각 방법을 한 번 평가한다. 테스트 결과를 확인해 임계값·전처리·모델 설정을 다시 고르지 않는다. 아래 체크포인트 경로는 최종 선택한 파일 경로로 바꾼다.
+검증 결과를 바탕으로 각 방법의 최종 설정과 체크포인트를 확정한 뒤, 테스트 세트에서 각 방법을 한 번 평가한다. 테스트 결과를 확인해 임계값·전처리·모델 설정을 다시 고르지 않는다. 고전 기법은 검증에서 선택한 `auto` 설정을 사용한다. 체크포인트 경로는 최종 선택한 파일 경로로 바꾼다.
 
 ```bash
-python evaluate_classical.py --split test --final-test --output results/classical_test --save-images
+python evaluate_classical.py --split test --final-test --polarity auto --output results/classical_test --save-images
 python evaluate_unet.py --checkpoint unet_final_best.pth --split test --output results/unet_test --save-images
 python evaluate_maskrcnn.py --checkpoint maskrcnn_final_best.pth --split test --output results/maskrcnn_test --save-images
 
@@ -141,29 +153,17 @@ U-Net 개수 측정은 이진 마스크 합집합에서 8방향 연결요소를 
 
 ## 고전 기법 포함 성능 비교
 
-고전 기법 파일 `classical_model.py`가 저장소 루트에 있어야 한다. `evaluate_classical.py`는 그 예측 함수를 불러 같은 이미지 ID에서 정답 마스크와 비교하고 표준 결과를 만든다. 결과 폴더에는 `per_image.csv`, `summary.json`, `example_ids.json`이 생성된다. `--save-images`를 지정하면 성공·실패 사례 그림용 원본 크기 예측·정답 마스크도 저장한다. 필수 CSV 열은 `image_id`, `dice`, `iou`, `count_abs_error`, `time_ms`다.
+고전 기법은 Otsu 이진화, 거리 변환, Watershed로 핵 영역을 나누고 개수를 센다. `classical_model.py`가 예측을 담당하고 `evaluate_classical.py`가 같은 이미지 ID의 정답과 비교해 공통 결과 형식으로 저장한다. 결과 폴더에는 `per_image.csv`, `summary.json`, `example_ids.json`이 생성되며, `--save-images` 지정 시 예측·정답·overlay도 저장한다. 필수 CSV 열은 `image_id`, `dice`, `iou`, `count_abs_error`, `time_ms`다.
 
-먼저 검증 데이터에서 실행한다. 기존 출력 경로를 재사용하면 결과 파일이 덮어써진다.
+고전 기법에는 학습이나 데이터 증강이 없다. 기존 `auto` 설정과 변경한 `bright` 설정을 같은 검증 세트에서 비교한다.
 
-```bash
-python evaluate_classical.py --split val --output results/classical_val --save-images
-```
+- `auto` 기존 설정: 이진화 결과의 테두리에서 흰색 비율을 확인해 필요하면 마스크를 반전한다.
+- `bright` 변경 설정: 핵이 밝고 배경이 어둡다고 가정해 Otsu 이진화 결과를 사용한다.
+- 두 설정 모두 입력 크기 512, `seed_ratio=0.7`, `min_area=16`을 사용한다. 설정 차이는 `polarity`뿐이다.
 
-설정을 확정한 뒤 최종 테스트를 한 번 실행한다. 테스트 평가에는 `--final-test`를 함께 지정한다.
+검증 100장 비교에서 기존 `auto`의 평균 Dice/IoU/핵 개수 오차는 0.7848/0.6728/13.28이었고, 변경한 `bright`는 0.6772/0.5837/17.95였다. 따라서 이 검증 결과에서는 기존 `auto`가 더 나았다. 이미지별 비교에서는 기존 `auto`가 변경 `bright`보다 Dice가 16장에서 높았고 84장에서는 같았다. 변경 `bright`가 더 높았던 이미지는 없었다. 예를 들어 한 이미지에서는 `auto`의 Dice가 `bright`보다 높았지만, 핵을 과다 분할해 개수 오차는 더 컸다. 정량 결과와 정성 사례를 함께 해석한다.
 
-```bash
-python evaluate_classical.py --split test --final-test --output results/classical_test --save-images
-```
-
-평가 순서의 검증·최종 테스트 절에 각 명령과 결과 비교 방법을 정리했다. `compare_models.py`는 모델을 직접 평가하지 않고, 각 평가기가 만든 표준 결과를 모아 비교한다.
-
-비교 도구는 모델 간 split과 이미지 ID가 일치하는지 확인한다. 결과 폴더에 다음 파일을 저장한다.
-
-- `model_comparison.csv`: 평균 Dice·IoU, 핵 개수 MAE, 이미지당 시간, 파라미터 수
-- `per_image_comparison.csv`: 동일 이미지에서 모델별 지표
-- `failure_analysis.csv`: 모델 평균 Dice가 낮은 순서의 이미지별 결과
-- `summary.json`: 사용 split, 요약 지표와 공통 저성능 이미지 ID
-
+`evaluate_classical.py`에서 `--polarity bright` 또는 `--polarity auto`를 지정해 평가한다. `--polarity`를 생략하면 기본값은 `auto`다. 검증 비교 명령과 최종 테스트 실행은 [평가 순서](#평가-순서)에 정리했다. 최종 테스트에는 검증에서 선택한 설정을 사용한다.
 ## 실패 사례 시각화와 분석
 
 모든 평가기를 `--save-images`와 함께 실행한 후 원본 데이터 및 각 모델 결과 경로를 전달한다.
