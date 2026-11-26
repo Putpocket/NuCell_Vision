@@ -16,6 +16,7 @@ def parse_args():
     parser.add_argument('--data-dir', type=Path, default=ROOT / 'data/stage1_train')
     parser.add_argument('--split-dir', type=Path, default=ROOT / 'splits')
     parser.add_argument('--split', choices=('val', 'test'), default='val')
+    parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--device', choices=('auto', 'cpu', 'cuda'), default='auto')
     parser.add_argument('--warmup', type=int, default=10)
     parser.add_argument('--save-images', action='store_true')
@@ -46,8 +47,15 @@ def main():
     config = checkpoint['config']
     if config['size'] != 512 or config['num_classes'] != 2:
         raise ValueError('Unsupported checkpoint configuration')
-    actual_hashes = {name: hashlib.sha256((args.split_dir / f'{name}.txt').read_bytes()).hexdigest()
-                     for name in ('train', 'val', 'test')}
+    actual_hashes = {
+    name: hashlib.sha256(
+        (args.split_dir / f'{name}.txt')
+        .read_bytes()
+        .replace(b'\r\n', b'\n')
+        .replace(b'\r', b'\n')
+    ).hexdigest()
+    for name in ('train', 'val', 'test')
+    }   
     if config['split_sha256'] != actual_hashes:
         raise ValueError('Split files differ from those used during training')
     args.output.mkdir(parents=True, exist_ok=True)

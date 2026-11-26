@@ -135,15 +135,15 @@ Mask R-CNN V2 체크포인트가 없으면 두 번째 비교 명령의 `maskrcnn
 검증 결과를 바탕으로 각 방법의 최종 설정과 체크포인트를 확정한 뒤, 테스트 세트에서 각 방법을 한 번 평가한다. 테스트 결과를 확인해 임계값·전처리·모델 설정을 다시 고르지 않는다. 고전 기법은 검증에서 선택한 `auto` 설정을 사용한다. 체크포인트 경로는 최종 선택한 파일 경로로 바꾼다.
 
 ```bash
-python evaluate_classical.py --split test --final-test --polarity auto --output results/classical_test --save-images
-python evaluate_unet.py --checkpoint unet_final_best.pth --split test --output results/unet_test --save-images
-python evaluate_maskrcnn.py --checkpoint maskrcnn_final_best.pth --split test --output results/maskrcnn_test --save-images
+python evaluate_classical.py --split test --final-test --polarity auto --output results/final_test/classical_auto --save-images
+python evaluate_unet.py --checkpoint unet_v2_best.pth --split test --output results/final_test/unet_v2 --save-images
+python evaluate_maskrcnn.py --checkpoint Mask_R-CNN_V2_best.pth --split test --output results/final_test/maskrcnn --save-images
 
 python compare_models.py \
-  --model classical=results/classical_test \
-  --model unet=results/unet_test \
-  --model maskrcnn=results/maskrcnn_test \
-  --output results/comparison_test
+  --model classical=results/final_test/classical_auto \
+  --model unet=results/final_test/unet_v2 \
+  --model maskrcnn=results/final_test/maskrcnn \
+  --output results/final_test/comparison
 ```
 두 평가기는 이미지 비율을 유지해 긴 변을 512로 맞추고 중앙 패딩한다. 추론 뒤 패딩을 제거해 원본 해상도로 복원하고, 핵 마스크 합집합 기준으로 이미지별 Dice·IoU 및 핵 개수 오차를 계산한다. 처리 시간은 배치 1, 워밍업 뒤 동기화를 포함하며, 메모리 내 이미지 입력부터 후처리까지 측정하고 디스크 파일 입출력은 제외한다. 모델별 파라미터 수와 평가 조건도 `summary.json`에 남긴다.
 
@@ -187,21 +187,34 @@ python make_qualitative_grid.py \
 
 이 명령은 여섯 설정의 이미지별 평균 Dice가 높은 성공 사례 3장과 낮은 실패 사례 3장을 고른다. 각 그림에는 `원본 | 정답 | classical_auto | classical_bright | unet_v1 | unet_v2 | maskrcnn_v1 | maskrcnn_v2` 순으로 표시하며, `results/version_comparison_val/`에 성공·실패 그림 3장씩과 사례 ID 정보가 저장된다. `--show`를 지정하면 저장이 끝난 뒤 그림이 한 장씩 차례로 열린다. `n` 또는 스페이스바는 다음 그림, `p`는 이전 그림, `q` 또는 `Esc`는 종료다. 화면에는 보기 편하게 축소해 표시하지만 저장된 PNG는 원본 크기다. 이 그림은 검증 데이터의 설정·버전 차이를 살펴보는 용도다.
 
-모든 평가기를 `--save-images`와 함께 실행한 후 원본 데이터 및 각 모델 결과 경로를 전달한다.
+평가 명령은 요약 수치를 터미널에 출력하지만 예측 그림 창을 자동으로 띄우지는 않는다. `--save-images` 옵션으로 저장된 이미지와 정량 결과를 이용해 사례 그림을 만들고, `--show`를 지정하면 그림을 한 장씩 화면에 띄울 수 있다. 이미 생성한 결과가 있으면 평가를 다시 돌릴 필요 없이 아래 시각화 명령만 실행하면 된다.
 
 ```bash
 python make_qualitative_grid.py \
   --data-dir data/stage1_train \
-  --model classical=results/classical_test \
-  --model unet=results/unet_test \
-  --model maskrcnn=results/maskrcnn_test \
-  --output results/qualitative_test \
+  --model classical=results/final_test/classical_auto \
+  --model unet=results/final_test/unet_v2 \
+  --model maskrcnn=results/final_test/maskrcnn \
+  --output results/final_test/qualitative \
   --success-count 3 \
   --failure-count 3 \
   --show
 ```
 
-공통 요구사항에 맞춰 각 그림은 `원본 | 정답 | 고전 기법 | 모델 A(U-Net) | 모델 B(Mask R-CNN)` 다섯 패널로 구성한다. 모델 평균 Dice가 높은 성공 사례 3장과 낮은 실패 사례 3장을 저장하고, `--show`를 지정하면 시연 중 한 장씩 넘겨 볼 수 있다. 최종 테스트 결과에서 정성 평가 사례를 고르며, 개선 원인은 검증 결과와 실패 사례를 바탕으로 별도로 분석한다.
+공통 요구사항에 맞춰 각 그림은 `원본 | 정답 | 고전 기법 | 모델 A(U-Net) | 모델 B(Mask R-CNN)` 다섯 패널로 구성한다. 모델 평균 Dice가 높은 성공 사례 3장과 낮은 실패 사례 3장을 저장하고, `--show`를 지정하면 시연 중 한 장씩 넘겨 볼 수 있다. 화면에는 다음 그림이 자동으로 이어서 나오지 않으므로 `n` 또는 스페이스바로 넘긴다. 출력 폴더에는 `success_case_1.png`~`success_case_3.png`, `failure_case_1.png`~`failure_case_3.png`, `selected_cases.json`이 저장된다. `qualitative` 폴더가 이미 있으면 다른 출력 경로를 지정한다. 최종 테스트 결과에서 정성 평가 사례를 고르며, 개선 원인은 검증 결과와 실패 사례를 바탕으로 별도로 분석한다.
+
+최종 테스트 결과 폴더는 다음과 같이 구성된다.
+
+```text
+results/final_test/
+├── classical_auto/   # 고전 기법 최종 설정(auto)
+├── unet_v2/          # U-Net 최종 체크포인트
+├── maskrcnn/         # Mask R-CNN 최종 체크포인트
+├── comparison/       # 세 방법 요약 및 이미지별 비교표
+└── qualitative/      # 성공·실패 사례 PNG와 선택된 이미지 ID
+```
+
+각 방법 폴더의 `summary.json`은 전체 요약, `per_image.csv`는 이미지별 지표, `example_ids.json`은 대표 이미지 ID를 담는다. `predictions/<이미지 ID>/`에는 `prediction.png`, `ground_truth.png`, `overlay.png`가 저장된다. `comparison/`에는 `model_comparison.csv`, `per_image_comparison.csv`, `failure_analysis.csv`, `summary.json`이 생성된다. 데이터셋과 체크포인트는 물론 평가 결과도 GitHub에 올리지 않고, 보고서·발표 자료와 시연에 필요한 결과 파일만 별도로 보관한다.
 
 ## 실험 기록
 
