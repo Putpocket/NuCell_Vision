@@ -32,6 +32,8 @@ def parse_args() -> argparse.Namespace:
                         help="실패 사례 수 (기본값: 3)")
     parser.add_argument("--success-count", type=int, default=3,
                         help="성공 사례 수 (기본값: 3)")
+    parser.add_argument("--show", action="store_true",
+                        help="저장 후 성공·실패 사례 그림을 화면에 차례로 표시")
     return parser.parse_args()
 
 
@@ -112,6 +114,44 @@ def draw_case(image_id: str, model_dirs: dict[str, Path],
         raise OSError(f"그림을 저장하지 못했습니다: {destination}")
 
 
+def show_cases(output: Path, success_count: int, failure_count: int) -> None:
+    """저장된 성공·실패 그림을 키보드로 넘겨 봅니다."""
+    paths = [
+        *(output / f"success_case_{index}.png" for index in range(1, success_count + 1)),
+        *(output / f"failure_case_{index}.png" for index in range(1, failure_count + 1)),
+    ]
+    index = 0
+    window_name = "Qualitative comparison - n/space: next, p: previous, q: quit"
+    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+    try:
+        while 0 <= index < len(paths):
+            image = cv2.imread(str(paths[index]), cv2.IMREAD_COLOR)
+            if image is None:
+                raise ValueError(f"저장된 사례 그림을 읽지 못했습니다: {paths[index]}")
+
+            # 저장 원본은 유지하고, 화면에 맞게 축소해서 표시합니다.
+            max_width, max_height = 1600, 900
+            scale = min(max_width / image.shape[1], max_height / image.shape[0], 1.0)
+            if scale < 1.0:
+                image = cv2.resize(
+                    image,
+                    (max(1, round(image.shape[1] * scale)),
+                     max(1, round(image.shape[0] * scale))),
+                    interpolation=cv2.INTER_AREA,
+                )
+            print(f"[{index + 1}/{len(paths)}] {paths[index].name}")
+            cv2.imshow(window_name, image)
+            key = cv2.waitKey(0) & 0xFF
+            if key in (ord("q"), 27):
+                break
+            if key in (ord("n"), ord(" "), 13):
+                index += 1
+            elif key == ord("p"):
+                index = max(0, index - 1)
+    finally:
+        cv2.destroyWindow(window_name)
+
+
 def main() -> int:
     args = parse_args()
     if args.failure_count < 3 or args.success_count < 3:
@@ -175,6 +215,8 @@ def main() -> int:
     (output / "selected_cases.json").write_text(json.dumps(selection, ensure_ascii=False, indent=2) + "\n",
                                                   encoding="utf-8")
     print(f"성공 사례 {len(success_ids)}개, 실패 사례 {len(failure_ids)}개 저장: {output}")
+    if args.show:
+        show_cases(output, len(success_ids), len(failure_ids))
     return 0
 
 

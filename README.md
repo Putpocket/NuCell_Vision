@@ -166,6 +166,27 @@ U-Net 개수 측정은 이진 마스크 합집합에서 8방향 연결요소를 
 `evaluate_classical.py`에서 `--polarity bright` 또는 `--polarity auto`를 지정해 평가한다. `--polarity`를 생략하면 기본값은 `auto`다. 검증 비교 명령과 최종 테스트 실행은 [평가 순서](#평가-순서)에 정리했다. 최종 테스트에는 검증에서 선택한 설정을 사용한다.
 ## 실패 사례 시각화와 분석
 
+### 검증 결과의 설정별 그림 비교
+
+고전 기법 `auto`·`bright`, U-Net V1·V2, Mask R-CNN V1·V2의 검증 결과를 한 이미지에 나란히 표시한다. 기존 `make_qualitative_grid.py`에서 `--model`을 반복해 지정하면 원본·정답과 여섯 설정의 예측이 한 줄에 배치된다. 평가는 같은 검증 이미지 ID를 사용해야 하며, 각 결과 폴더에 `per_image.csv`, `summary.json`, `predictions/`가 있어야 한다.
+
+```bash
+python make_qualitative_grid.py \
+  --data-dir data/stage1_train \
+  --model classical_auto=results/classical_auto_val \
+  --model classical_bright=results/classical_bright_val \
+  --model unet_v1=results/unet_v1_val \
+  --model unet_v2=results/unet_v2_val \
+  --model maskrcnn_v1=results/maskrcnn_v1_val \
+  --model maskrcnn_v2=results/maskrcnn_v2_val \
+  --output results/version_comparison_val \
+  --success-count 3 \
+  --failure-count 3 \
+  --show
+```
+
+이 명령은 여섯 설정의 이미지별 평균 Dice가 높은 성공 사례 3장과 낮은 실패 사례 3장을 고른다. 각 그림에는 `원본 | 정답 | classical_auto | classical_bright | unet_v1 | unet_v2 | maskrcnn_v1 | maskrcnn_v2` 순으로 표시하며, `results/version_comparison_val/`에 성공·실패 그림 3장씩과 사례 ID 정보가 저장된다. `--show`를 지정하면 저장이 끝난 뒤 그림이 한 장씩 차례로 열린다. `n` 또는 스페이스바는 다음 그림, `p`는 이전 그림, `q` 또는 `Esc`는 종료다. 화면에는 보기 편하게 축소해 표시하지만 저장된 PNG는 원본 크기다. 이 그림은 검증 데이터의 설정·버전 차이를 살펴보는 용도다.
+
 모든 평가기를 `--save-images`와 함께 실행한 후 원본 데이터 및 각 모델 결과 경로를 전달한다.
 
 ```bash
@@ -174,10 +195,13 @@ python make_qualitative_grid.py \
   --model classical=results/classical_test \
   --model unet=results/unet_test \
   --model maskrcnn=results/maskrcnn_test \
-  --output results/qualitative_test
+  --output results/qualitative_test \
+  --success-count 3 \
+  --failure-count 3 \
+  --show
 ```
 
-모델 평균 Dice가 높은 성공 사례 3장과 낮은 실패 사례 3장을 기본으로 저장한다. 필요하면 `--success-count`와 `--failure-count`로 사례 수를 늘릴 수 있다(각각 최소 3). 출력은 `success_case_1.png`부터 `success_case_3.png`, `failure_case_1.png`부터 `failure_case_3.png`와 선택 정보를 담은 `selected_cases.json`이다. 그림을 확인해 작은 핵, 맞닿은 핵, 흐릿한 경계, 염색·조명 차이, 마스크 손실 등 실제 원인을 구분해 보고서에 기록한다. 개선 실험은 우선 검증 데이터에서 수행하고, 개선 전후 조건과 수치를 기록한 다음 테스트 평가 설정을 고정한다.
+공통 요구사항에 맞춰 각 그림은 `원본 | 정답 | 고전 기법 | 모델 A(U-Net) | 모델 B(Mask R-CNN)` 다섯 패널로 구성한다. 모델 평균 Dice가 높은 성공 사례 3장과 낮은 실패 사례 3장을 저장하고, `--show`를 지정하면 시연 중 한 장씩 넘겨 볼 수 있다. 최종 테스트 결과에서 정성 평가 사례를 고르며, 개선 원인은 검증 결과와 실패 사례를 바탕으로 별도로 분석한다.
 
 ## 실험 기록
 
